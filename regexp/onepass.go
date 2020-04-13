@@ -5,10 +5,11 @@
 package regexp
 
 import (
-	"regexp/syntax"
 	"sort"
 	"strings"
 	"unicode"
+
+	"github.com/andrewarchi/regexp-crossword/regexp/syntax"
 )
 
 // "One-pass" regexp execution.

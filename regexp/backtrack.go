@@ -15,8 +15,9 @@
 package regexp
 
 import (
-	"regexp/syntax"
 	"sync"
+
+	"github.com/andrewarchi/regexp-crossword/regexp/syntax"
 )
 
 // A job is an entry on the backtracker's job stack. It holds

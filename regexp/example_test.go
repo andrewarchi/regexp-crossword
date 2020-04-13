@@ -6,8 +6,9 @@ package regexp_test
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
+
+	"github.com/andrewarchi/regexp-crossword/regexp"
 )
 
 func Example() {
