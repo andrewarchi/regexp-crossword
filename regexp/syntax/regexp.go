@@ -22,8 +22,8 @@ type Regexp struct {
 	Rune     []rune     // matched runes, for OpLiteral, OpCharClass
 	Rune0    [2]rune    // storage for short Rune
 	Min, Max int        // min, max for OpRepeat
-	Cap      int        // capturing index, for OpCapture
-	Name     string     // capturing name, for OpCapture
+	Cap      int        // capturing index, for OpCapture, OpBackreference
+	Name     string     // capturing name, for OpCapture, OpBackreference
 }
 
 //go:generate stringer -type Op -trimprefix Op
@@ -42,6 +42,7 @@ const (
 	OpCharClass                    // matches Runes interpreted as range pair list
 	OpAnyCharNotNL                 // matches any character except newline
 	OpAnyChar                      // matches any character
+	OpBackref                      // matches backreference
 	OpBeginLine                    // matches empty string at beginning of line
 	OpEndLine                      // matches empty string at end of line
 	OpBeginText                    // matches empty string at beginning of text
@@ -166,6 +167,17 @@ func writeRegexp(b *strings.Builder, re *Regexp) {
 		b.WriteString(`(?-s:.)`)
 	case OpAnyChar:
 		b.WriteString(`(?s:.)`)
+	case OpBackref:
+		if re.Name != "" {
+			b.WriteString(`\k<`)
+			b.WriteString(re.Name)
+			b.WriteRune('>')
+		} else if re.Cap <= 9 {
+			b.WriteRune('\\')
+			b.WriteRune('0' + rune(re.Cap))
+		} else {
+			b.WriteString("<invalid backreference>")
+		}
 	case OpBeginLine:
 		b.WriteString(`(?m:^)`)
 	case OpEndLine:

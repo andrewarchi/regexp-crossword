@@ -4,18 +4,45 @@ package syntax
 
 import "strconv"
 
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[OpNoMatch-1]
+	_ = x[OpEmptyMatch-2]
+	_ = x[OpLiteral-3]
+	_ = x[OpCharClass-4]
+	_ = x[OpAnyCharNotNL-5]
+	_ = x[OpAnyChar-6]
+	_ = x[OpBackref-7]
+	_ = x[OpBeginLine-8]
+	_ = x[OpEndLine-9]
+	_ = x[OpBeginText-10]
+	_ = x[OpEndText-11]
+	_ = x[OpWordBoundary-12]
+	_ = x[OpNoWordBoundary-13]
+	_ = x[OpCapture-14]
+	_ = x[OpStar-15]
+	_ = x[OpPlus-16]
+	_ = x[OpQuest-17]
+	_ = x[OpRepeat-18]
+	_ = x[OpConcat-19]
+	_ = x[OpAlternate-20]
+	_ = x[opPseudo-128]
+}
+
 const (
-	_Op_name_0 = "NoMatchEmptyMatchLiteralCharClassAnyCharNotNLAnyCharBeginLineEndLineBeginTextEndTextWordBoundaryNoWordBoundaryCaptureStarPlusQuestRepeatConcatAlternate"
+	_Op_name_0 = "NoMatchEmptyMatchLiteralCharClassAnyCharNotNLAnyCharBackrefBeginLineEndLineBeginTextEndTextWordBoundaryNoWordBoundaryCaptureStarPlusQuestRepeatConcatAlternate"
 	_Op_name_1 = "opPseudo"
 )
 
 var (
-	_Op_index_0 = [...]uint8{0, 7, 17, 24, 33, 45, 52, 61, 68, 77, 84, 96, 110, 117, 121, 125, 130, 136, 142, 151}
+	_Op_index_0 = [...]uint8{0, 7, 17, 24, 33, 45, 52, 59, 68, 75, 84, 91, 103, 117, 124, 128, 132, 137, 143, 149, 158}
 )
 
 func (i Op) String() string {
 	switch {
-	case 1 <= i && i <= 19:
+	case 1 <= i && i <= 20:
 		i -= 1
 		return _Op_name_0[_Op_index_0[i]:_Op_index_0[i+1]]
 	case i == 128:

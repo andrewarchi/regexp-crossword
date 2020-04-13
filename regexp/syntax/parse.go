@@ -34,6 +34,7 @@ const (
 	ErrInvalidCharRange      ErrorCode = "invalid character class range"
 	ErrInvalidEscape         ErrorCode = "invalid escape sequence"
 	ErrInvalidNamedCapture   ErrorCode = "invalid named capture"
+	ErrInvalidNamedBackref   ErrorCode = "invalid named backreference"
 	ErrInvalidPerlOp         ErrorCode = "invalid or unsupported Perl syntax"
 	ErrInvalidRepeatOp       ErrorCode = "invalid nested repetition operator"
 	ErrInvalidRepeatSize     ErrorCode = "invalid repeat count"
@@ -61,6 +62,7 @@ const (
 	NonGreedy                       // make repetition operators default to non-greedy
 	PerlX                           // allow Perl extensions
 	UnicodeGroups                   // allow \p{Han}, \P{Han} for Unicode group and negation
+	Backref                         // allow backreferences
 	WasDollar                       // regexp OpEndText was $, not \z
 	Simple                          // regexp contains no counted repetition
 
@@ -856,6 +858,45 @@ func Parse(s string, flags Flags) (*Regexp, error) {
 			re := p.newRegexp(OpCharClass)
 			re.Flags = p.flags
 
+			if p.flags&Backref != 0 && len(t) >= 2 {
+				// Indexed backreference.
+				if t[1] >= '1' && t[1] <= '9' {
+					re.Op = OpBackref
+					re.Cap = int(t[1] - '0')
+					t = t[2:]
+					p.push(re)
+					break BigSwitch
+				}
+
+				// Named backreference.
+				if len(t) > 3 && t[1] == 'k' && t[2] == '<' {
+					// Pull out name.
+					end := strings.IndexRune(t, '>')
+					if end < 0 {
+						if err = checkUTF8(t); err != nil {
+							return nil, err
+						}
+						return nil, &Error{ErrInvalidNamedBackref, t}
+					}
+
+					capture := t[:end+1] // "\k<name>"
+					name := t[3:end]     // "name"
+					if err = checkUTF8(name); err != nil {
+						return nil, err
+					}
+					if !isValidCaptureName(name) {
+						return nil, &Error{ErrInvalidNamedBackref, capture}
+					}
+
+					// Like ordinary capture, but named.
+					re.Op = OpBackref
+					re.Name = name
+					t = t[end+1:]
+					p.push(re)
+					break BigSwitch
+				}
+			}
+
 			// Look for Unicode character group like \p{Han}
 			if len(t) >= 2 && (t[1] == 'p' || t[1] == 'P') {
 				r, rest, err := p.parseUnicodeClass(t, re.Rune0[:0])
@@ -1264,7 +1305,7 @@ Switch:
 
 	// Octal escapes.
 	case '1', '2', '3', '4', '5', '6', '7':
-		// Single non-zero digit is a backreference; not supported
+		// Single non-zero digit is a backreference
 		if t == "" || t[0] < '0' || t[0] > '7' {
 			break
 		}
