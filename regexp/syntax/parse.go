@@ -85,6 +85,8 @@ type parser struct {
 	numCap      int // number of capturing groups seen
 	wholeRegexp string
 	tmpClass    []rune // temporary char class work space
+	captures    []*Regexp
+	backrefs    []*Regexp
 }
 
 func (p *parser) newRegexp(op Op) *Regexp {
@@ -855,47 +857,21 @@ func Parse(s string, flags Flags) (*Regexp, error) {
 				}
 			}
 
+			cap, name, rest, err := p.parseBackref(t)
+			if err != nil {
+				return nil, err
+			}
+			if cap != 0 {
+				re := p.op(OpBackref)
+				re.Cap = cap
+				re.Name = name
+				t = rest
+				p.backrefs = append(p.backrefs, re)
+				break BigSwitch
+			}
+
 			re := p.newRegexp(OpCharClass)
 			re.Flags = p.flags
-
-			if p.flags&Backref != 0 && len(t) >= 2 {
-				// Indexed backreference.
-				if t[1] >= '1' && t[1] <= '9' {
-					re.Op = OpBackref
-					re.Cap = int(t[1] - '0')
-					t = t[2:]
-					p.push(re)
-					break BigSwitch
-				}
-
-				// Named backreference.
-				if len(t) > 3 && t[1] == 'k' && t[2] == '<' {
-					// Pull out name.
-					end := strings.IndexRune(t, '>')
-					if end < 0 {
-						if err = checkUTF8(t); err != nil {
-							return nil, err
-						}
-						return nil, &Error{ErrInvalidNamedBackref, t}
-					}
-
-					capture := t[:end+1] // "\k<name>"
-					name := t[3:end]     // "name"
-					if err = checkUTF8(name); err != nil {
-						return nil, err
-					}
-					if !isValidCaptureName(name) {
-						return nil, &Error{ErrInvalidNamedBackref, capture}
-					}
-
-					// Like ordinary capture, but named.
-					re.Op = OpBackref
-					re.Name = name
-					t = t[end+1:]
-					p.push(re)
-					break BigSwitch
-				}
-			}
 
 			// Look for Unicode character group like \p{Han}
 			if len(t) >= 2 && (t[1] == 'p' || t[1] == 'P') {
@@ -1027,6 +1003,7 @@ func (p *parser) parsePerlFlags(s string) (rest string, err error) {
 		re := p.op(opLeftParen)
 		re.Cap = p.numCap
 		re.Name = name
+		p.captures = append(p.captures, re)
 		return t[end+1:], nil
 	}
 
@@ -1394,6 +1371,41 @@ Switch:
 		return '\v', t, err
 	}
 	return 0, "", &Error{ErrInvalidEscape, s[:len(s)-len(t)]}
+}
+
+func (p *parser) parseBackref(s string) (cap int, name, rest string, err error) {
+	if p.flags&Backref == 0 || len(s) < 2 {
+		return
+	}
+
+	// Indexed backreference.
+	if '1' <= s[1] && s[1] <= '9' {
+		return int(s[1] - '0'), "", s[2:], nil
+	}
+
+	// Named backreference.
+	if len(s) > 3 && s[1] == 'k' && s[2] == '<' {
+		// Pull out name.
+		end := strings.IndexRune(s, '>')
+		if end < 0 {
+			if err := checkUTF8(s); err != nil {
+				return 0, "", "", err
+			}
+			return 0, "", "", &Error{ErrInvalidNamedBackref, s}
+		}
+
+		backref := s[:end+1] // "\k<name>"
+		name := s[3:end]     // "name"
+		if err = checkUTF8(name); err != nil {
+			return 0, "", "", err
+		}
+		if !isValidCaptureName(name) {
+			return 0, "", "", &Error{ErrInvalidNamedBackref, backref}
+		}
+		return -1, name, s[end+1:], nil
+	}
+
+	return
 }
 
 // parseClassChar parses a character class character at the beginning of s
