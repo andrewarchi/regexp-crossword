@@ -42,13 +42,13 @@ const (
 	OpCharClass                    // matches Runes interpreted as range pair list
 	OpAnyCharNotNL                 // matches any character except newline
 	OpAnyChar                      // matches any character
-	OpBackref                      // matches backreference
 	OpBeginLine                    // matches empty string at beginning of line
 	OpEndLine                      // matches empty string at end of line
 	OpBeginText                    // matches empty string at beginning of text
 	OpEndText                      // matches empty string at end of text
 	OpWordBoundary                 // matches word boundary `\b`
 	OpNoWordBoundary               // matches word non-boundary `\B`
+	OpBackref                      // matches backreference
 	OpCapture                      // capturing subexpression with index Cap, optional name Name
 	OpStar                         // matches Sub[0] zero or more times
 	OpPlus                         // matches Sub[0] one or more times

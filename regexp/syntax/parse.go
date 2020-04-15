@@ -916,6 +916,9 @@ func Parse(s string, flags Flags) (*Regexp, error) {
 	if n != 1 {
 		return nil, &Error{ErrMissingParen, s}
 	}
+
+	p.connectBackrefs()
+
 	return p.stack[0], nil
 }
 
@@ -1373,6 +1376,8 @@ Switch:
 	return 0, "", &Error{ErrInvalidEscape, s[:len(s)-len(t)]}
 }
 
+// parseBackref handles a backreference starting with \ at the beginning
+// of s and returns it.
 func (p *parser) parseBackref(s string) (cap int, name, rest string, err error) {
 	if p.flags&Backref == 0 || len(s) < 2 {
 		return
@@ -1406,6 +1411,27 @@ func (p *parser) parseBackref(s string) (cap int, name, rest string, err error) 
 	}
 
 	return
+}
+
+// connectBackrefs looks up the capture index for named backreferences
+// and removes captureless backrefs.
+func (p *parser) connectBackrefs() {
+BackrefLoop:
+	for _, b := range p.backrefs {
+		if b.Cap == -1 {
+			for _, c := range p.captures {
+				if c.Name == b.Name {
+					b.Cap = c.Cap
+					continue BackrefLoop
+				}
+			}
+		} else if b.Cap <= p.numCap {
+			continue
+		}
+		// remove backref without capture
+		b.Op = OpEmptyMatch
+		b.Sub = nil
+	}
 }
 
 // parseClassChar parses a character class character at the beginning of s

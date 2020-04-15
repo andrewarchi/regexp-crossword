@@ -14,13 +14,13 @@ func _() {
 	_ = x[OpCharClass-4]
 	_ = x[OpAnyCharNotNL-5]
 	_ = x[OpAnyChar-6]
-	_ = x[OpBackref-7]
-	_ = x[OpBeginLine-8]
-	_ = x[OpEndLine-9]
-	_ = x[OpBeginText-10]
-	_ = x[OpEndText-11]
-	_ = x[OpWordBoundary-12]
-	_ = x[OpNoWordBoundary-13]
+	_ = x[OpBeginLine-7]
+	_ = x[OpEndLine-8]
+	_ = x[OpBeginText-9]
+	_ = x[OpEndText-10]
+	_ = x[OpWordBoundary-11]
+	_ = x[OpNoWordBoundary-12]
+	_ = x[OpBackref-13]
 	_ = x[OpCapture-14]
 	_ = x[OpStar-15]
 	_ = x[OpPlus-16]
@@ -32,12 +32,12 @@ func _() {
 }
 
 const (
-	_Op_name_0 = "NoMatchEmptyMatchLiteralCharClassAnyCharNotNLAnyCharBackrefBeginLineEndLineBeginTextEndTextWordBoundaryNoWordBoundaryCaptureStarPlusQuestRepeatConcatAlternate"
+	_Op_name_0 = "NoMatchEmptyMatchLiteralCharClassAnyCharNotNLAnyCharBeginLineEndLineBeginTextEndTextWordBoundaryNoWordBoundaryBackrefCaptureStarPlusQuestRepeatConcatAlternate"
 	_Op_name_1 = "opPseudo"
 )
 
 var (
-	_Op_index_0 = [...]uint8{0, 7, 17, 24, 33, 45, 52, 59, 68, 75, 84, 91, 103, 117, 124, 128, 132, 137, 143, 149, 158}
+	_Op_index_0 = [...]uint8{0, 7, 17, 24, 33, 45, 52, 61, 68, 77, 84, 96, 110, 117, 124, 128, 132, 137, 143, 149, 158}
 )
 
 func (i Op) String() string {

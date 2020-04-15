@@ -163,6 +163,8 @@ func (c *compiler) compile(re *Regexp) frag {
 			f = c.alt(f, c.compile(sub))
 		}
 		return f
+	case OpBackref:
+		panic("regexp: non-expanded backreference in compile")
 	}
 	panic("regexp: unhandled case in compile")
 }

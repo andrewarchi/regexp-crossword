@@ -301,6 +301,7 @@ var opNames = []string{
 	OpEndText:        "eot",
 	OpWordBoundary:   "wb",
 	OpNoWordBoundary: "nwb",
+	OpBackref:        "bac",
 	OpCapture:        "cap",
 	OpStar:           "star",
 	OpPlus:           "plus",
@@ -366,6 +367,12 @@ func dumpRegexp(b *strings.Builder, re *Regexp) {
 			b.WriteByte(':')
 		}
 		dumpRegexp(b, re.Sub[0])
+	case OpBackref:
+		fmt.Fprintf(b, "%d", re.Cap)
+		if re.Name != "" {
+			b.WriteByte(',')
+			b.WriteString(re.Name)
+		}
 	case OpCharClass:
 		sep := ""
 		for i := 0; i < len(re.Rune); i += 2 {
