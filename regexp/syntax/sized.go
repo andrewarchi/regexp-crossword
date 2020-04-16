@@ -54,8 +54,7 @@ func (s *sizedRegexp) insert(re *Regexp, size int) {
 func concat(a, b *sizedRegexp, min, max int) *sizedRegexp {
 	cMin, cMax := a.min+b.min, a.max+b.max
 	if cMin >= max {
-		panic("concat overflow")
-		return &sizedRegexp{nil, 0, 0}
+		panic("regexp: concat overflow")
 	}
 	if max < cMax {
 		cMax = max
@@ -133,12 +132,14 @@ func plus(a *sizedRegexp, min, max int) *sizedRegexp {
 nonzero:
 
 	// TODO: concat using shared terms like exponentiation by squaring.
+	star := a
 	acc := a
 	n := (max + aMin - 1) / aMin
-	for i := 1; i < n; i++ {
-		acc = union(acc, concat(acc, a, min, max), min, max)
+	for i := 2; i < n; i++ {
+		acc = concat(acc, a, min, max)
+		star = union(star, acc, min, max)
 	}
-	return acc.trim(min, max)
+	return star.trim(min, max)
 }
 
 type constrainer struct {
@@ -187,17 +188,22 @@ func (c *constrainer) constrain(re *Regexp, min, max int) *sizedRegexp {
 		}
 		s = c.captures[re.Cap].trim(min, max)
 	case OpStar:
-		acc := plus(c.constrain(re.Sub[0], min, max), min, max)
-		if acc.inBounds(0) {
-			acc.insert(&Regexp{Op: OpEmptyMatch}, 0)
+		sub := c.constrain(re.Sub[0], 0, max)
+		acc := plus(sub, min, max)
+		if min == 0 {
+			empty := &sizedRegexp{[]*Regexp{&Regexp{Op: OpEmptyMatch}}, 0, 1}
+			acc = union(acc, empty, min, max)
 		}
-		s = acc
+		s = acc.trim(min, max)
 	case OpPlus:
-		s = plus(c.constrain(re.Sub[0], min, max), min, max)
+		sub := c.constrain(re.Sub[0], 0, max)
+		acc := plus(sub, min, max)
+		s = acc.trim(min, max)
 	case OpQuest:
 		sub := c.constrain(re.Sub[0], min, max)
-		if sub.inBounds(0) {
-			sub.insert(&Regexp{Op: OpEmptyMatch}, 0)
+		if min == 0 {
+			empty := &sizedRegexp{[]*Regexp{&Regexp{Op: OpEmptyMatch}}, 0, 1}
+			sub = union(sub, empty, min, max)
 		}
 		s = sub
 	case OpConcat:
