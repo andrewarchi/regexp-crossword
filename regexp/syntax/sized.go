@@ -80,9 +80,9 @@ func concat(a, b *sizedRegexp, min, max int) *sizedRegexp {
 				if bRe != nil {
 					n := i + j + cMin
 					if n < cMax {
-						if aRe.Op == OpEmptyMatch {
+						if aRe.Op == OpEmptyMatch || bRe.Op == OpNoMatch {
 							c.insert(bRe, n)
-						} else if bRe.Op == OpEmptyMatch {
+						} else if bRe.Op == OpEmptyMatch || aRe.Op == OpNoMatch {
 							c.insert(aRe, n)
 						} else if aRe.Op == OpLiteral && bRe.Op == OpLiteral {
 							ab := &Regexp{Op: OpLiteral}
@@ -149,12 +149,12 @@ func plus(a *sizedRegexp, min, max int) *sizedRegexp {
 		for i := 1; i < len(a.sizes); i++ {
 			if a.sizes[i] != nil {
 				aMin = a.min + i
-				goto nonzero
+				goto Nonzero
 			}
 		}
 		return a.trim(min, max)
 	}
-nonzero:
+Nonzero:
 
 	// TODO: concat using shared terms like exponentiation by squaring.
 	star := a
@@ -165,6 +165,67 @@ nonzero:
 		star = union(star, acc, min, max)
 	}
 	return star.trim(min, max)
+}
+
+func (re *Regexp) Reverse() *Regexp {
+	if re == nil {
+		return nil
+	}
+	switch re.Op {
+	case OpNoMatch, OpEmptyMatch,
+		OpBeginLine, OpEndLine, OpBeginText, OpEndText,
+		OpWordBoundary, OpNoWordBoundary,
+		OpCharClass, OpAnyCharNotNL, OpAnyChar:
+		return re
+	case OpLiteral:
+		nre := &Regexp{Op: OpLiteral, Rune: make([]rune, len(re.Rune))}
+		for i, r := range re.Rune {
+			nre.Rune[len(re.Rune)-i-1] = r
+		}
+		return nre
+	case OpBackref:
+		return re
+	case OpCapture, OpStar, OpPlus, OpQuest, OpRepeat:
+		sub := re.Sub[0].Reverse()
+		if sub == re.Sub[0] {
+			return re
+		}
+		nre := new(Regexp)
+		*nre = *re
+		nre.Sub = append(nre.Sub0[:0], sub)
+		return nre
+	case OpConcat:
+		if len(re.Sub) == 1 {
+			return re.Sub[0].Reverse()
+		}
+		nre := &Regexp{Op: OpConcat, Sub: make([]*Regexp, len(re.Sub))}
+		for i, sub := range re.Sub {
+			nre.Sub[len(re.Sub)-i-1] = sub.Reverse()
+		}
+		return nre
+	case OpAlternate:
+		if len(re.Sub) == 1 {
+			return re.Sub[0].Reverse()
+		}
+		// Simplify children, building new Regexp if children change.
+		nre := re
+		for i, sub := range re.Sub {
+			nsub := sub.Reverse()
+			if nre == re && nsub != sub {
+				// Start a copy.
+				nre = new(Regexp)
+				*nre = *re
+				nre.Rune = nil
+				nre.Sub = append(nre.Sub0[:0], re.Sub[:i]...)
+			}
+			if nre != re {
+				nre.Sub = append(nre.Sub, nsub)
+			}
+		}
+		return nre
+	default:
+		panic("regexp: unhandled case in reverse")
+	}
 }
 
 type constrainer struct {
