@@ -376,7 +376,34 @@ func (p *parser) collapse(subs []*Regexp, op Op) *Regexp {
 	}
 	re := p.newRegexp(op)
 	re.Sub = re.Sub0[:0]
+	quest := false
 	for _, sub := range subs {
+		switch op {
+		case OpConcat:
+			switch sub.Op {
+			case OpNoMatch:
+				p.reuse(re)
+				return sub
+			case OpEmptyMatch:
+				p.reuse(sub)
+				continue
+			}
+		case OpAlternate:
+			switch sub.Op {
+			case OpQuest:
+				re.Sub = append(re.Sub, sub.Sub...)
+				p.reuse(sub)
+				quest = true
+				continue
+			case OpNoMatch:
+				p.reuse(sub)
+				continue
+			case OpEmptyMatch:
+				p.reuse(sub)
+				quest = true
+				continue
+			}
+		}
 		if sub.Op == op {
 			re.Sub = append(re.Sub, sub.Sub...)
 			p.reuse(sub)
@@ -386,10 +413,20 @@ func (p *parser) collapse(subs []*Regexp, op Op) *Regexp {
 	}
 	if op == OpAlternate {
 		re.Sub = p.factor(re.Sub)
-		if len(re.Sub) == 1 {
+		switch len(re.Sub) {
+		case 0:
+			re.Op = OpEmptyMatch
+			re.Sub = nil
+			return re
+		case 1:
 			old := re
 			re = re.Sub[0]
 			p.reuse(old)
+		}
+		if quest {
+			q := p.newRegexp(OpQuest)
+			q.Sub = append(q.Sub[:0], re)
+			re = q
 		}
 	}
 	return re
