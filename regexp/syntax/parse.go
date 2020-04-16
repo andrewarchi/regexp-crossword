@@ -86,7 +86,6 @@ type parser struct {
 	wholeRegexp string
 	tmpClass    []rune // temporary char class work space
 	captures    []*Regexp
-	backrefs    []*Regexp
 }
 
 func (p *parser) newRegexp(op Op) *Regexp {
@@ -894,16 +893,19 @@ func Parse(s string, flags Flags) (*Regexp, error) {
 				}
 			}
 
-			cap, name, rest, err := p.parseBackref(t)
+			capture, name, rest, err := p.parseBackref(t)
 			if err != nil {
 				return nil, err
 			}
-			if cap != 0 {
-				re := p.op(OpBackref)
-				re.Cap = cap
-				re.Name = name
+			if capture != 0 {
+				if capture == -1 {
+					p.op(OpEmptyMatch)
+				} else {
+					re := p.op(OpBackref)
+					re.Cap = capture
+					re.Name = name
+				}
 				t = rest
-				p.backrefs = append(p.backrefs, re)
 				break BigSwitch
 			}
 
@@ -953,9 +955,6 @@ func Parse(s string, flags Flags) (*Regexp, error) {
 	if n != 1 {
 		return nil, &Error{ErrMissingParen, s}
 	}
-
-	p.connectBackrefs()
-
 	return p.stack[0], nil
 }
 
@@ -1415,14 +1414,18 @@ Switch:
 
 // parseBackref handles a backreference starting with \ at the beginning
 // of s and returns it.
-func (p *parser) parseBackref(s string) (cap int, name, rest string, err error) {
+func (p *parser) parseBackref(s string) (capture int, name, rest string, err error) {
 	if p.flags&Backref == 0 || len(s) < 2 {
 		return
 	}
 
 	// Indexed backreference.
 	if '1' <= s[1] && s[1] <= '9' {
-		return int(s[1] - '0'), "", s[2:], nil
+		capture := int(s[1] - '0')
+		if capture > p.numCap {
+			return -1, "", s[2:], nil
+		}
+		return capture, "", s[2:], nil
 	}
 
 	// Named backreference.
@@ -1444,31 +1447,15 @@ func (p *parser) parseBackref(s string) (cap int, name, rest string, err error) 
 		if !isValidCaptureName(name) {
 			return 0, "", "", &Error{ErrInvalidNamedBackref, backref}
 		}
-		return -1, name, s[end+1:], nil
+		for _, c := range p.captures {
+			if c.Name == name {
+				return c.Cap, name, s[end+1:], nil
+			}
+		}
+		return -1, "", s[end+1:], nil
 	}
 
 	return
-}
-
-// connectBackrefs looks up the capture index for named backreferences
-// and removes captureless backrefs.
-func (p *parser) connectBackrefs() {
-BackrefLoop:
-	for _, b := range p.backrefs {
-		if b.Cap == -1 {
-			for _, c := range p.captures {
-				if c.Name == b.Name {
-					b.Cap = c.Cap
-					continue BackrefLoop
-				}
-			}
-		} else if b.Cap <= p.numCap {
-			continue
-		}
-		// remove backref without capture
-		b.Op = OpEmptyMatch
-		b.Sub = nil
-	}
 }
 
 // parseClassChar parses a character class character at the beginning of s
