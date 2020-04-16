@@ -14,6 +14,20 @@ func (s *sizedRegexp) inBounds(size int) bool {
 	return s.min <= size && size < s.max
 }
 
+func (s *sizedRegexp) size(n int) *Regexp {
+	if !s.inBounds(n) {
+		return &Regexp{Op: OpNoMatch}
+	}
+	return s.sizes[n-s.min]
+}
+
+func (s *sizedRegexp) regexp() *Regexp {
+	if s.min+1 == s.max {
+		return s.sizes[0]
+	}
+	return &Regexp{Op: OpAlternate, Sub: s.sizes}
+}
+
 func (s *sizedRegexp) trim(min, max int) *sizedRegexp {
 	if max < min || max < s.min || min > s.max {
 		panic("regexp: invalid trim bounds")
@@ -54,7 +68,7 @@ func (s *sizedRegexp) insert(re *Regexp, size int) {
 func concat(a, b *sizedRegexp, min, max int) *sizedRegexp {
 	cMin, cMax := a.min+b.min, a.max+b.max
 	if cMin >= max {
-		panic("regexp: concat overflow")
+		return &sizedRegexp{nil, 0, 0}
 	}
 	if max < cMax {
 		cMax = max
@@ -66,21 +80,32 @@ func concat(a, b *sizedRegexp, min, max int) *sizedRegexp {
 				if bRe != nil {
 					n := i + j + cMin
 					if n < cMax {
-						ab := &Regexp{Op: OpConcat}
-						ab.Sub = ab.Sub0[:0]
-
-						if aRe.Op == OpConcat {
-							ab.Sub = append(ab.Sub, aRe.Sub...)
+						if aRe.Op == OpEmptyMatch {
+							c.insert(bRe, n)
+						} else if bRe.Op == OpEmptyMatch {
+							c.insert(aRe, n)
+						} else if aRe.Op == OpLiteral && bRe.Op == OpLiteral {
+							ab := &Regexp{Op: OpLiteral}
+							ab.Rune = append(ab.Rune, aRe.Rune...)
+							ab.Rune = append(ab.Rune, bRe.Rune...)
+							c.insert(ab, n)
 						} else {
-							ab.Sub = append(ab.Sub, aRe)
-						}
-						if bRe.Op == OpConcat {
-							ab.Sub = append(ab.Sub, bRe.Sub...)
-						} else {
-							ab.Sub = append(ab.Sub, bRe)
-						}
+							ab := &Regexp{Op: OpConcat}
+							ab.Sub = ab.Sub0[:0]
 
-						c.insert(ab, n)
+							if aRe.Op == OpConcat {
+								ab.Sub = append(ab.Sub, aRe.Sub...)
+							} else {
+								ab.Sub = append(ab.Sub, aRe)
+							}
+							if bRe.Op == OpConcat {
+								ab.Sub = append(ab.Sub, bRe.Sub...)
+							} else {
+								ab.Sub = append(ab.Sub, bRe)
+							}
+
+							c.insert(ab, n)
+						}
 					}
 				}
 			}
@@ -183,10 +208,10 @@ func (c *constrainer) constrain(re *Regexp, min, max int) *sizedRegexp {
 		c.captures = append(c.captures, capture)
 		s = capture
 	case OpBackref:
-		if re.Cap > len(c.captures) {
+		if re.Cap > len(c.captures) || re.Cap <= 0 {
 			panic("regexp: capture not found")
 		}
-		s = c.captures[re.Cap].trim(min, max)
+		s = c.captures[re.Cap-1]
 	case OpStar:
 		sub := c.constrain(re.Sub[0], 0, max)
 		acc := plus(sub, min, max)
@@ -211,13 +236,11 @@ func (c *constrainer) constrain(re *Regexp, min, max int) *sizedRegexp {
 			s = &sizedRegexp{[]*Regexp{&Regexp{Op: OpEmptyMatch}}, 0, 1}
 			break
 		}
-		acc := c.constrain(re.Sub[0], min, max)
+		acc := c.constrain(re.Sub[0], 0, max)
 		for _, sub := range re.Sub[1:] {
-			// TODO
-			// acc = concat(acc, c.constrain(sub, min-acc.min, max-acc.min), min, max)
-			acc = concat(acc, c.constrain(sub, min, max), min, max)
+			acc = concat(acc, c.constrain(sub, 0, max-acc.min), min, max)
 		}
-		s = acc
+		s = acc.trim(min, max)
 	case OpAlternate:
 		if len(re.Sub) == 0 {
 			s = &sizedRegexp{nil, 0, 0}
