@@ -186,14 +186,7 @@ func (re *Regexp) Reverse() *Regexp {
 	case OpBackref:
 		return re
 	case OpCapture, OpStar, OpPlus, OpQuest, OpRepeat:
-		sub := re.Sub[0].Reverse()
-		if sub == re.Sub[0] {
-			return re
-		}
-		nre := new(Regexp)
-		*nre = *re
-		nre.Sub = append(nre.Sub0[:0], sub)
-		return nre
+		return re.transform1((*Regexp).Reverse)
 	case OpConcat:
 		if len(re.Sub) == 1 {
 			return re.Sub[0].Reverse()
@@ -204,28 +197,127 @@ func (re *Regexp) Reverse() *Regexp {
 		}
 		return nre
 	case OpAlternate:
-		if len(re.Sub) == 1 {
-			return re.Sub[0].Reverse()
-		}
-		// Simplify children, building new Regexp if children change.
-		nre := re
-		for i, sub := range re.Sub {
-			nsub := sub.Reverse()
-			if nre == re && nsub != sub {
-				// Start a copy.
-				nre = new(Regexp)
-				*nre = *re
-				nre.Rune = nil
-				nre.Sub = append(nre.Sub0[:0], re.Sub[:i]...)
-			}
-			if nre != re {
-				nre.Sub = append(nre.Sub, nsub)
-			}
-		}
-		return nre
+		return re.transform((*Regexp).Reverse)
 	default:
 		panic("regexp: unhandled case in reverse")
 	}
+}
+
+func (re *Regexp) Mask(runes []rune) *Regexp {
+	if re == nil {
+		return nil
+	}
+	maskFn := func(re *Regexp) *Regexp {
+		return re.Mask(runes)
+	}
+	switch re.Op {
+	case OpNoMatch, OpEmptyMatch,
+		OpBeginLine, OpEndLine, OpBeginText, OpEndText,
+		OpWordBoundary, OpNoWordBoundary:
+		return re
+	case OpCharClass:
+		return &Regexp{Op: OpCharClass, Rune: intersectCharClass(re.Rune, runes)}
+	case OpAnyCharNotNL:
+		return &Regexp{Op: OpCharClass, Rune: intersectCharClass(anyRuneNotNL, runes)}
+	case OpAnyChar:
+		return &Regexp{Op: OpCharClass, Rune: runes}
+	case OpLiteral:
+	LiteralLoop:
+		for _, r := range re.Rune {
+			for i := 0; i < len(runes); i += 2 {
+				lo, hi := runes[i], runes[i+1]
+				if lo <= r && r <= hi {
+					continue LiteralLoop
+				}
+				if r > hi {
+					break
+				}
+			}
+			return &Regexp{Op: OpNoMatch}
+		}
+		return re
+	case OpBackref:
+		return re
+	case OpCapture, OpStar, OpPlus, OpQuest, OpRepeat:
+		return re.transform1(maskFn)
+	case OpConcat, OpAlternate:
+		return re.transform(maskFn)
+	default:
+		panic("regexp: unhandled case in reverse")
+	}
+}
+
+func intersectCharClass(c1, c2 []rune) []rune {
+	if len(c1) == 0 || len(c2) == 0 {
+		return nil
+	}
+	var c3 []rune
+	i, j := 0, 0
+	for i < len(c1) && j < len(c2) {
+		lo1, hi1 := c1[i], c1[i+1]
+		lo2, hi2 := c2[j], c2[j+1]
+		switch {
+		case hi1 < lo2: // c1 below c2
+			i += 2
+		case hi2 < lo1: // c2 below c1
+			j += 2
+		case hi1 == lo2: // hi1 touches c2
+			c3 = append(c3, hi1, hi1)
+			i += 2
+		case hi2 == lo1: // hi2 touches c1
+			c3 = append(c3, hi2, hi2)
+			j += 2
+		case lo1 == lo2 && hi1 == hi2: // equal
+			c3 = append(c3, lo1, hi1)
+			i += 2
+			j += 2
+		case lo2 <= lo1 && hi1 <= hi2: // c1 in c2
+			c3 = append(c3, lo1, hi1)
+			i += 2
+		case lo1 <= lo2 && hi2 <= hi1: // c2 in c1
+			c3 = append(c3, lo2, hi2)
+			j += 2
+		case lo1 < lo2 && hi1 < hi2:
+			c3 = append(c3, lo2, hi1)
+			i++
+		case lo2 < lo1 && hi2 < hi1:
+			c3 = append(c3, lo1, hi2)
+			j++
+		default:
+			panic("regexp: unhandled case in intersectCharClass")
+		}
+	}
+	return c3
+}
+
+func (re *Regexp) transform1(fn func(*Regexp) *Regexp) *Regexp {
+	sub := fn(re.Sub[0])
+	if sub == re.Sub[0] {
+		return re
+	}
+	nre := new(Regexp)
+	*nre = *re
+	nre.Sub = append(nre.Sub0[:0], sub)
+	return nre
+}
+
+func (re *Regexp) transform(fn func(*Regexp) *Regexp) *Regexp {
+	// Simplify children, building new Regexp if children change.
+	nre := re
+	for i, sub := range re.Sub {
+		nsub := fn(sub)
+		if nre == re && nsub != sub {
+			// Start a copy.
+			nre = new(Regexp)
+			*nre = *re
+			nre.Rune = nil
+			nre.Sub = append(nre.Sub0[:0], re.Sub[:i]...)
+		}
+		if nre != re {
+			nre.Sub = append(nre.Sub, nsub)
+		}
+	}
+	return nre
 }
 
 type constrainer struct {
