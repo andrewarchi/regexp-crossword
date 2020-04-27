@@ -80,7 +80,7 @@ func (p *Puzzle) ValidatePatterns() []SyntaxError {
 	for _, axis := range [3][][]string{p.PatternsX, p.PatternsY, p.PatternsZ} {
 		for _, set := range axis {
 			for _, pattern := range set {
-				if _, err := syntax.Parse(pattern, syntax.Perl|syntax.Backref); err != nil {
+				if _, err := syntax.Parse(pattern, syntax.Perl|syntax.Backref|syntax.PermissiveEscapes); err != nil {
 					errs = append(errs, SyntaxError{pattern, err})
 				}
 			}

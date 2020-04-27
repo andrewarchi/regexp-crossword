@@ -54,17 +54,18 @@ func (e ErrorCode) String() string {
 type Flags uint16
 
 const (
-	FoldCase      Flags = 1 << iota // case-insensitive match
-	Literal                         // treat pattern as literal string
-	ClassNL                         // allow character classes like [^a-z] and [[:space:]] to match newline
-	DotNL                           // allow . to match newline
-	OneLine                         // treat ^ and $ as only matching at beginning and end of text
-	NonGreedy                       // make repetition operators default to non-greedy
-	PerlX                           // allow Perl extensions
-	UnicodeGroups                   // allow \p{Han}, \P{Han} for Unicode group and negation
-	Backref                         // allow backreferences
-	WasDollar                       // regexp OpEndText was $, not \z
-	Simple                          // regexp contains no counted repetition
+	FoldCase          Flags = 1 << iota // case-insensitive match
+	Literal                             // treat pattern as literal string
+	ClassNL                             // allow character classes like [^a-z] and [[:space:]] to match newline
+	DotNL                               // allow . to match newline
+	OneLine                             // treat ^ and $ as only matching at beginning and end of text
+	NonGreedy                           // make repetition operators default to non-greedy
+	PerlX                               // allow Perl extensions
+	UnicodeGroups                       // allow \p{Han}, \P{Han} for Unicode group and negation
+	WasDollar                           // regexp OpEndText was $, not \z
+	Simple                              // regexp contains no counted repetition
+	Backref                             // allow backreferences
+	PermissiveEscapes                   // allow \uxxxx, \u{xxxxx}, and \e
 
 	MatchNL = ClassNL | DotNL
 
@@ -1340,7 +1341,7 @@ Switch:
 
 	// Hexadecimal escapes.
 	case 'x', 'u':
-		if t == "" {
+		if t == "" || (c == 'u' && p.flags&PermissiveEscapes == 0) {
 			break
 		}
 		e := c
@@ -1420,6 +1421,10 @@ Switch:
 		return '\t', t, err
 	case 'v':
 		return '\v', t, err
+	case 'e':
+		if p.flags&PermissiveEscapes != 0 {
+			return '\x1b', t, err
+		}
 	}
 	return 0, "", &Error{ErrInvalidEscape, s[:len(s)-len(t)]}
 }
