@@ -26,7 +26,7 @@ func TestValidatePatterns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	var errs []syntaxError
+	var errs []SyntaxError
 	for _, c := range challenges {
 		for _, p := range c.Puzzles {
 			errs = append(errs, p.ValidatePatterns()...)

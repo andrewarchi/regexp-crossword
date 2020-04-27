@@ -68,18 +68,20 @@ func GetPlayerPuzzles() ([]Puzzle, error) {
 	return p, nil
 }
 
-type syntaxError struct {
+// SyntaxError is a pattern parse error.
+type SyntaxError struct {
 	Pattern string
 	Err     error
 }
 
-func (p *Puzzle) ValidatePatterns() []syntaxError {
-	var errs []syntaxError
+// ValidatePatterns parses each pattern and reports syntax errors.
+func (p *Puzzle) ValidatePatterns() []SyntaxError {
+	var errs []SyntaxError
 	for _, axis := range [3][][]string{p.PatternsX, p.PatternsY, p.PatternsZ} {
 		for _, set := range axis {
 			for _, pattern := range set {
 				if _, err := syntax.Parse(pattern, syntax.Perl|syntax.Backref); err != nil {
-					errs = append(errs, syntaxError{pattern, err})
+					errs = append(errs, SyntaxError{pattern, err})
 				}
 			}
 		}

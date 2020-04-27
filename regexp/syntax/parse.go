@@ -1339,10 +1339,11 @@ Switch:
 		return r, t, nil
 
 	// Hexadecimal escapes.
-	case 'x':
+	case 'x', 'u':
 		if t == "" {
 			break
 		}
+		e := c
 		if c, t, err = nextRune(t); err != nil {
 			return 0, "", err
 		}
@@ -1379,16 +1380,27 @@ Switch:
 			return r, t, nil
 		}
 
-		// Easy case: two hex digits.
-		x := unhex(c)
-		if c, t, err = nextRune(t); err != nil {
-			return 0, "", err
+		// Easy case: two or four hex digits.
+		nhex := 2
+		if e == 'u' {
+			nhex = 4
 		}
-		y := unhex(c)
-		if x < 0 || y < 0 {
-			break
+		v := unhex(c)
+		if v < 0 {
+			break Switch
 		}
-		return x*16 + y, t, nil
+		r = rune(v)
+		for i := 1; i < nhex; i++ {
+			if c, t, err = nextRune(t); err != nil {
+				return 0, "", err
+			}
+			v := unhex(c)
+			if v < 0 {
+				break Switch
+			}
+			r = r*16 + v
+		}
+		return r, t, nil
 
 	// C escapes. There is no case 'b', to avoid misparsing
 	// the Perl word-boundary \b as the C backspace \b
