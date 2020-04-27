@@ -88,3 +88,24 @@ func (p *Puzzle) ValidatePatterns() []SyntaxError {
 	}
 	return errs
 }
+
+func (p *Puzzle) PatternOps(counts map[syntax.Op]int) {
+	for _, axis := range [3][][]string{p.PatternsX, p.PatternsY, p.PatternsZ} {
+		for _, set := range axis {
+			for _, pattern := range set {
+				re, err := syntax.Parse(pattern, syntax.Perl|syntax.Backref|syntax.PermissiveEscapes)
+				if err != nil {
+					continue
+				}
+				countOps(re, counts)
+			}
+		}
+	}
+}
+
+func countOps(re *syntax.Regexp, counts map[syntax.Op]int) {
+	counts[re.Op]++
+	for _, sub := range re.Sub {
+		countOps(sub, counts)
+	}
+}

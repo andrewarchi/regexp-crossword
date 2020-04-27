@@ -3,6 +3,8 @@ package crossword
 import (
 	"fmt"
 	"testing"
+
+	"github.com/andrewarchi/regexp-crossword/regexp/syntax"
 )
 
 func TestGetChallenges(t *testing.T) {
@@ -50,4 +52,26 @@ func TestValidatePatterns(t *testing.T) {
 		}
 		fmt.Println()
 	}
+}
+
+func TestOpUsage(t *testing.T) {
+	challenges, err := GetChallenges()
+	if err != nil {
+		t.Fatal(err)
+	}
+	puzzles, err := GetPlayerPuzzles()
+	if err != nil {
+		t.Fatal(err)
+	}
+	counts := make(map[syntax.Op]int)
+	for _, c := range challenges {
+		for _, p := range c.Puzzles {
+			p.PatternOps(counts)
+		}
+	}
+	for _, p := range puzzles {
+		p.PatternOps(counts)
+	}
+	t.Fail()
+	fmt.Println(counts)
 }
