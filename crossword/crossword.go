@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+
+	"github.com/andrewarchi/regexp-crossword/regexp/syntax"
 )
 
 // Challenge is a group of puzzles of similar difficulty.
@@ -64,4 +66,23 @@ func GetPlayerPuzzles() ([]Puzzle, error) {
 		return nil, err
 	}
 	return p, nil
+}
+
+type syntaxError struct {
+	Pattern string
+	Err     error
+}
+
+func (p *Puzzle) ValidatePatterns() []syntaxError {
+	var errs []syntaxError
+	for _, axis := range [3][][]string{p.PatternsX, p.PatternsY, p.PatternsZ} {
+		for _, set := range axis {
+			for _, pattern := range set {
+				if _, err := syntax.Parse(pattern, syntax.Perl|syntax.Backref); err != nil {
+					errs = append(errs, syntaxError{pattern, err})
+				}
+			}
+		}
+	}
+	return errs
 }
